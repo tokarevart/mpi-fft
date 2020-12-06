@@ -148,20 +148,18 @@ Complex* transpose_cmat(const Complex* cmat, int nrows, int ncols) {
 Complex* mpi_transpose_cmat(const Complex* lines, int q, int crank, int csize) {
     IntBlock block = partition(q, csize, crank);
     Complex* tr_lines = transpose_cmat(lines, block.size, q);
-    int blsize_szcompl = block.size * sizeof(Complex);
 
     int* counts = calloc(csize, sizeof(int));
+    int blsize_szcompl = block.size * sizeof(Complex);
     for (int i = 0; i < csize; ++i) {
         IntBlock block_i = partition(q, csize, i);
         counts[i] = block_i.size * blsize_szcompl;
     }
 
     int* displs = calloc(csize, sizeof(int));
-    int cur_displ = 0;
-    for (int i = 0; i < csize; ++i) {
-        displs[i] = cur_displ;
-        IntBlock block_i = partition(q, csize, i);
-        cur_displ += block_i.size * blsize_szcompl;
+    displs[0] = 0;
+    for (int i = 1; i < csize; ++i) {
+        displs[i] = displs[i - 1] + counts[i - 1];
     }
 
     Complex* buf = calloc(block.size * q, sizeof(Complex));
@@ -170,8 +168,23 @@ Complex* mpi_transpose_cmat(const Complex* lines, int q, int crank, int csize) {
         buf, counts, displs, MPI_BYTE, 
         MPI_COMM_WORLD
     );
+    free(tr_lines);
 
-    //
+    Complex* res = calloc(block.size * q, sizeof(Complex));
+    int cur_pos = 0;
+    for (int i = 0; i < block.size; ++i) {
+        for (int j = 0; j < csize; ++j) {
+            int countj_div_blsize = counts[j] / block.size;
+            int part = displs[j] + countj_div_blsize * i;
+            for (int k = 0; k < countj_div_blsize; ++k) {
+                res[cur_pos++] = buf[part + k];
+            }
+        }
+    }
+    free(buf);
+    free(displs);
+    free(counts);
+    return res;
 }
 
 // in:  transposed matrix of x
@@ -217,6 +230,9 @@ Complex* mpi_fft(const Complex* tr_cmat, int q, double nfactor, int expsign, int
         }
     }
     free(phi);
+
+    Complex* tr_ksi = mpi_transpose_cmat(ksi, q, crank, csize);
+    free(ksi);
 
     //
 }

@@ -1,8 +1,10 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <memory.h>
 #include <stdbool.h>
 #include <math.h>
-#include <mpi.h>
+// #include <mpi.h>
+#include "mpi.h" // only for intellisense
 
 typedef struct {
     double re;
@@ -100,7 +102,6 @@ Complex* random_tr_cmat(int q) {
 
 typedef struct {
     int beg;
-    int end;
     int size;
 } IntBlock;
 
@@ -111,7 +112,7 @@ IntBlock partition(int total, int num_blocks, int block_idx) {
     int block_beg = block_idx * block_maxsize;
     int block_end = min_int(block_beg + block_maxsize, total);
     // IntBlock res = { block_beg, block_end, block_end - block_beg };
-    return (IntBlock){ block_beg, block_end, block_end - block_beg };
+    return (IntBlock){ block_beg, block_end - block_beg };
 }
 
 // in:  transposed matrix of x
@@ -120,15 +121,33 @@ IntBlock partition(int total, int num_blocks, int block_idx) {
 // 0-th process is root
 Complex* fft(const Complex* trcmat, int q, int crank, int csize) {
     IntBlock block = partition(q, csize, crank);
+    Complex* flatlines = calloc(block.size * q, sizeof(Complex));
 
     if (crank == 0) {
+        memcpy(
+            flatlines, 
+            trcmat + block.beg * q, 
+            block.size * q * sizeof(Complex)
+        );
+
         for (int i = 1; i < csize; ++i) {
-            
+            IntBlock block_i = partition(q, csize, i);
+            MPI_Send(
+                trcmat + block_i.beg * q, 
+                block_i.size * q * sizeof(Complex), 
+                MPI_BYTE, i, 0, MPI_COMM_WORLD
+            );
         }
 
     } else {
-        
+        MPI_Recv(
+            flatlines, 
+            block.size * q * sizeof(Complex), 
+            MPI_BYTE, 0, 0, MPI_COMM_WORLD
+        );
     }
+
+    //
 }
 
 int main(int argc, char** argv) {

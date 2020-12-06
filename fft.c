@@ -52,7 +52,7 @@ Complex dft_expi(double top, double bottom) {
     return expi(twopi * top / bottom);
 }
 
-Complex dft_prod(const Complex* cvec, int q, int l, double nfactor, int expsign) {
+Complex generic_dft_prod(const Complex* cvec, int q, int l, double nfactor, int expsign) {
     Complex res = { 0.0, 0.0 };
     int signed_l = l * expsign;
     for (int i = 0; i < q; ++i) {
@@ -62,26 +62,10 @@ Complex dft_prod(const Complex* cvec, int q, int l, double nfactor, int expsign)
     return scale_compl(res, nfactor);
 }
 
-void dft_line_prod(Complex* out, const Complex* cvec, int q, double nfactor, int expsign) {
+void generic_dft_line_prod(Complex* out, const Complex* cvec, int q, double nfactor, int expsign) {
     for (int l = 0; l < q; ++l) {
         out[l] = dft_prod(cvec, q, l, nfactor, expsign);
     }
-}
-
-Complex forward_dft_prod(const Complex* cvec, int q, int l) {
-    return dft_prod(cvec, q, l, 1.0, -1);
-}
-
-Complex inverse_dft_prod(const Complex* cvec, int q, int l) {
-    return dft_prod(cvec, q, l, 1.0 / (q * q), 1);
-}
-
-void forward_dft_line_prod(Complex* out, const Complex* cvec, int q) {
-    dft_line_prod(out, cvec, q, 1.0, -1);
-}
-
-void inverse_dft_line_prod(Complex* out, const Complex* cvec, int q) {
-    dft_line_prod(out, cvec, q, 1.0 / (q * q), 1);
 }
 
 bool is_power_of_two(int n) {
@@ -191,7 +175,7 @@ Complex* mpi_transpose_cmat(const Complex* lines, int q, int crank, int csize) {
 // out: transposed matrix of F(x)
 // transposed means column-major instead of row-major
 // 0-th process is root
-Complex* mpi_fft(const Complex* tr_cmat, int q, double nfactor, int expsign, int crank, int csize) {
+Complex* mpi_generic_fft(const Complex* tr_cmat, int q, double nfactor, int expsign, int crank, int csize) {
     IntBlock block = partition(q, csize, crank);
     Complex* phi = calloc(block.size * q, sizeof(Complex));
 
@@ -223,7 +207,7 @@ Complex* mpi_fft(const Complex* tr_cmat, int q, double nfactor, int expsign, int
     for (int s = 0; s < block.size; ++s) {
         Complex* ksi_line = ksi + s * q;
         Complex* phi_line = phi + s * q;
-        dft_line_prod(ksi_line, phi_line, q, nfactor, expsign);
+        generic_dft_line_prod(ksi_line, phi_line, q, nfactor, expsign);
         int signed_s = expsign * s;
         for (int l = 0; l < q; ++l) {
             ksi_line[l] = mul_compl(phi_line, dft_expi(l * signed_s, q * q))
@@ -235,6 +219,14 @@ Complex* mpi_fft(const Complex* tr_cmat, int q, double nfactor, int expsign, int
     free(ksi);
 
     //
+}
+
+Complex* mpi_fft(const Complex* tr_cmat, int q, int crank, int csize) {
+    return mpi_generic_fft(tr_cmat, q, 1.0, -1, crank, csize);
+}
+
+Complex* mpi_inverse_fft(const Complex* tr_cmat, int q, int crank, int csize) {
+    return mpi_generic_fft(tr_cmat, q, 1.0 / (q * q), 1, crank, csize);
 }
 
 int main(int argc, char** argv) {

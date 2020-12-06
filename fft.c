@@ -119,13 +119,17 @@ void swap_compl(Complex* lhs, Complex* rhs) {
     *rhs = tmp;
 }
 
-Complex* transpose_cmat(const Complex* cmat, int nrows, int ncols) {
-    Complex* res = calloc(ncols * nrows, sizeof(Complex));
+void transpose_part_cmat(Complex* dest, int dest_ncols, const Complex* cmat, int nrows, int ncols) {
     for (int i = 0; i < nrows; ++i) {
         for (int j = 0; j < ncols; ++j) {
-            res[nrows * j + i] = cmat[ncols * i + j];
+            dest[j * dest_ncols + i] = cmat[j + i * ncols];
         }
     }
+}
+
+Complex* transpose_cmat(const Complex* cmat, int nrows, int ncols) {
+    Complex* res = calloc(ncols * nrows, sizeof(Complex));
+    transpose_part_cmat(res, nrows, cmat, nrows, ncols);
     return res;
 }
 
@@ -166,8 +170,8 @@ Complex* mpi_transpose_cmat(const Complex* lines, int q, int crank, int csize) {
         }
     }
     free(buf);
-    free(displs);
     free(counts);
+    free(displs);
     return res;
 }
 
@@ -175,33 +179,33 @@ Complex* mpi_transpose_cmat(const Complex* lines, int q, int crank, int csize) {
 // out: transposed matrix of F(x)
 // transposed means column-major instead of row-major
 // 0-th process is root
-Complex* mpi_generic_fft(const Complex* tr_cmat, int q, double nfactor, int expsign, int crank, int csize) {
+Complex* mpi_generic_fft(const Complex* tr_cmat, int q, double nfactor, int expsign, int crank, int csize, int root) {
     IntBlock block = partition(q, csize, crank);
     Complex* phi = calloc(block.size * q, sizeof(Complex));
 
-    if (crank == 0) {
-        memcpy(
-            phi, 
-            tr_cmat + block.beg * q, 
-            block.size * q * sizeof(Complex)
-        );
+    Complex* counts;
+    Complex* displs;
+    if (crank == root) {
+        res = calloc(q * q, sizeof(Complex));
 
-        for (int i = 1; i < csize; ++i) {
+        counts = calloc(csize, sizeof(int));
+        for (int i = 0; i < csize; ++i) {
             IntBlock block_i = partition(q, csize, i);
-            MPI_Send(
-                tr_cmat + block_i.beg * q, 
-                block_i.size * q * sizeof(Complex), 
-                MPI_BYTE, i, 0, MPI_COMM_WORLD
-            );
+            counts[i] = block_i.size * q * sizeof(Complex);
         }
 
-    } else {
-        MPI_Recv(
-            phi, 
-            block.size * q * sizeof(Complex), 
-            MPI_BYTE, 0, 0, MPI_COMM_WORLD
-        );
+        displs = calloc(csize, sizeof(int));
+        displs[0] = 0;
+        for (int i = 1; i < csize; ++i) {
+            displs[i] = displs[i - 1] + counts[i - 1];
+        }
     }
+
+    MPI_Scatterv(
+        tr_cmat, counts, displs, MPI_BYTE, 
+        phi, block.size * q * sizeof(Complex), MPI_BYTE, 
+        root, MPI_COMM_WORLD
+    );
 
     Complex* ksi = calloc(block.size * q, sizeof(Complex));
     for (int s = 0; s < block.size; ++s) {
@@ -218,7 +222,27 @@ Complex* mpi_generic_fft(const Complex* tr_cmat, int q, double nfactor, int exps
     Complex* tr_ksi = mpi_transpose_cmat(ksi, q, crank, csize);
     free(ksi);
 
-    //
+    Complex* res_part = calloc(block.size * q, sizeof(Complex));
+    for (int l = 0; l < block.size; ++l) {
+        Complex* res_line = res_part + l * q;
+        Complex* tr_ksi_line = tr_ksi + l * q;
+        generic_dft_line_prod(res_line, tr_ksi_line, q, nfactor, expsign);
+    }
+    free(tr_ksi);
+
+    Complex* res = NULL;
+    if (crank == root) {
+        res = calloc(q * q, sizeof(Complex));
+    }
+    MPI_Gatherv(
+        res_part, block.size * q * sizeof(Complex), MPI_BYTE, 
+        res, counts, displs, MPI_BYTE, 
+        root, MPI_COMM_WORLD
+    );
+    free(res_part);
+    free(counts);
+    free(displs);
+    return res;
 }
 
 Complex* mpi_fft(const Complex* tr_cmat, int q, int crank, int csize) {
@@ -248,7 +272,7 @@ int main(int argc, char** argv) {
         tr_x = random_tr_cmat(q);
     }
     
-    Complex* tr_fx = fft(tr_x, q, crank, csize);
+    Complex* tr_fx = mpi_fft(tr_x, q, crank, csize);
 
     MPI_Finalize();
     return 0;

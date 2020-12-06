@@ -148,12 +148,35 @@ Complex* transpose_cmat(const Complex* cmat, int nrows, int ncols) {
 Complex* mpi_transpose_cmat(const Complex* lines, int q, int crank, int csize) {
     IntBlock block = partition(q, csize, crank);
     Complex* tr_lines = transpose_cmat(lines, block.size, q);
+    int blsize_szcompl = block.size * sizeof(Complex);
+
+    int* counts = calloc(csize, sizeof(int));
+    for (int i = 0; i < csize; ++i) {
+        IntBlock block_i = partition(q, csize, i);
+        counts[i] = block_i.size * blsize_szcompl;
+    }
+
+    int* displs = calloc(csize, sizeof(int));
+    int cur_displ = 0;
+    for (int i = 0; i < csize; ++i) {
+        displs[i] = cur_displ;
+        IntBlock block_i = partition(q, csize, i);
+        cur_displ += block_i.size * blsize_szcompl;
+    }
+
+    Complex* buf = calloc(block.size * q, sizeof(Complex));
+    MPI_Alltoallv(
+        tr_lines, counts, displs, MPI_BYTE, 
+        buf, counts, displs, MPI_BYTE, 
+        MPI_COMM_WORLD
+    );
+
     //
 }
 
 // in:  transposed matrix of x
 // out: transposed matrix of F(x)
-// transposed means column-major
+// transposed means column-major instead of row-major
 // 0-th process is root
 Complex* mpi_fft(const Complex* tr_cmat, int q, double nfactor, int expsign, int crank, int csize) {
     IntBlock block = partition(q, csize, crank);

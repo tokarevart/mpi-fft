@@ -38,7 +38,30 @@ Complex mul_compl(Complex lhs, Complex rhs) {
     return res;
 }
 
-Complex epsi(double x) {
+Complex expi(double x) {
     Complex res = { cos(x), sin(x) };
     return res;
+}
+
+Complex dft_expi(double top, double bottom) {
+    const double twopi = 6.2831853071795864769;
+    return expi(twopi * top / bottom);
+}
+
+Complex prod_expi(const Complex* cvec, int q, int l, double nfactor, int expsign) {
+    Complex res = new_compl(0.0, 0.0);
+    int signedl = l * expsign;
+    for (int i = 0; i < q; ++i) {
+        Complex epsiprod = mul_compl(cvec[i], dft_expi(signedl * i, q));
+        res = add_compl(res, epsiprod);
+    }
+    return scale_compl(res, nfactor);
+}
+
+Complex forward_prod_expi(const Complex* cvec, int q, int l) {
+    return prod_expi(cvec, q, l, 1.0, -1);
+}
+
+Complex inverse_prod_expi(const Complex* cvec, int q, int l) {
+    return prod_expi(cvec, q, l, 1.0 / (q * q), 1);
 }

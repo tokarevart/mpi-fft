@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <math.h>
+#include <mpi.h>
 
 typedef struct {
     double re;
@@ -9,36 +10,39 @@ typedef struct {
 } Complex;
 
 Complex conj_compl(Complex c) {
-    Complex res = { c.re, -c.im };
-    return res;
+    // Complex res = { c.re, -c.im };
+    return (Complex){ c.re, -c.im };
 }
 
 Complex add_compl(Complex lhs, Complex rhs) {
-    Complex res = { lhs.re + rhs.re, lhs.im + rhs.im };
-    return res;
+    // Complex res = { lhs.re + rhs.re, lhs.im + rhs.im };
+    return (Complex){ lhs.re + rhs.re, lhs.im + rhs.im };
 }
 
 Complex sub_compl(Complex lhs, Complex rhs) {
-    Complex res = { lhs.re - rhs.re, lhs.im - rhs.im };
-    return res;
+    // Complex res = { lhs.re - rhs.re, lhs.im - rhs.im };
+    return (Complex){ lhs.re - rhs.re, lhs.im - rhs.im };
 }
 
 Complex scale_compl(Complex c, double k) {
-    Complex res = { c.re * k, c.im * k };
-    return res;
+    // Complex res = { c.re * k, c.im * k };
+    return (Complex){ c.re * k, c.im * k };
 }
 
 Complex mul_compl(Complex lhs, Complex rhs) {
-    Complex res = { 
+    // Complex res = { 
+    //     lhs.re * rhs.re - lhs.im * rhs.im, 
+    //     lhs.re * rhs.im + lhs.im * rhs.re 
+    // };
+    return (Complex) { 
         lhs.re * rhs.re - lhs.im * rhs.im, 
         lhs.re * rhs.im + lhs.im * rhs.re 
     };
-    return res;
 }
 
 Complex expi(double x) {
-    Complex res = { cos(x), sin(x) };
-    return res;
+    // Complex res = { cos(x), sin(x) };
+    return (Complex){ cos(x), sin(x) };
 }
 
 Complex dft_expi(double top, double bottom) {
@@ -46,7 +50,7 @@ Complex dft_expi(double top, double bottom) {
     return expi(twopi * top / bottom);
 }
 
-Complex prod_expi(const Complex* cvec, int q, int l, double nfactor, int expsign) {
+Complex dft_prod(const Complex* cvec, int q, int l, double nfactor, int expsign) {
     Complex res = { 0.0, 0.0 };
     int signedl = l * expsign;
     for (int i = 0; i < q; ++i) {
@@ -56,12 +60,12 @@ Complex prod_expi(const Complex* cvec, int q, int l, double nfactor, int expsign
     return scale_compl(res, nfactor);
 }
 
-Complex forward_prod_expi(const Complex* cvec, int q, int l) {
-    return prod_expi(cvec, q, l, 1.0, -1);
+Complex forward_dft_prod(const Complex* cvec, int q, int l) {
+    return dft_prod(cvec, q, l, 1.0, -1);
 }
 
-Complex inverse_prod_expi(const Complex* cvec, int q, int l) {
-    return prod_expi(cvec, q, l, 1.0 / (q * q), 1);
+Complex inverse_dft_prod(const Complex* cvec, int q, int l) {
+    return dft_prod(cvec, q, l, 1.0 / (q * q), 1);
 }
 
 bool is_power_of_two(int n) {
@@ -106,6 +110,48 @@ IntBlock partition(int total, int num_blocks, int block_idx) {
     int block_maxsize = (total - 1) / num_blocks + 1;
     int block_beg = block_idx * block_maxsize;
     int block_end = min_int(block_beg + block_maxsize, total);
-    IntBlock res = { block_beg, block_end, block_end - block_beg };
-    return res;
+    // IntBlock res = { block_beg, block_end, block_end - block_beg };
+    return (IntBlock){ block_beg, block_end, block_end - block_beg };
+}
+
+// in:  transposed matrix of x
+// out: transposed matrix of F(x)
+// transposed means column-major
+// 0-th process is root
+Complex* fft(const Complex* trcmat, int q, int crank, int csize) {
+    IntBlock block = partition(q, csize, crank);
+
+    if (crank == 0) {
+        for (int i = 1; i < csize; ++i) {
+            
+        }
+
+    } else {
+        
+    }
+}
+
+int main(int argc, char** argv) {
+    int q = 4;
+
+    int crank, csize;
+    MPI_Init(&argc, &argv);
+    MPI_Comm_rank(MPI_COMM_WORLD, &crank);
+    MPI_Comm_size(MPI_COMM_WORLD, &csize);
+    if (crank >= q) {
+        MPI_Finalize();
+        return 0;
+    }
+    csize = min_int(csize, q);
+    srand(crank);
+
+    Complex* tr_x = NULL;
+    if (crank == 0) {
+        tr_x = random_tr_cmat(q);
+    }
+    
+    Complex* tr_fx = fft(tr_x, q, crank, csize);
+
+    MPI_Finalize();
+    return 0;
 }

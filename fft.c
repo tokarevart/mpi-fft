@@ -54,12 +54,18 @@ Complex dft_expi(double top, double bottom) {
 
 Complex dft_prod(const Complex* cvec, int q, int l, double nfactor, int expsign) {
     Complex res = { 0.0, 0.0 };
-    int signedl = l * expsign;
+    int signed_l = l * expsign;
     for (int i = 0; i < q; ++i) {
-        Complex epsiprod = mul_compl(cvec[i], dft_expi(signedl * i, q));
+        Complex epsiprod = mul_compl(cvec[i], dft_expi(signed_l * i, q));
         res = add_compl(res, epsiprod);
     }
     return scale_compl(res, nfactor);
+}
+
+void dft_line_prod(Complex* out, const Complex* cvec, int q, double nfactor, int expsign) {
+    for (int l = 0; l < q; ++l) {
+        out[l] = dft_prod(cvec, q, l, nfactor, expsign);
+    }
 }
 
 Complex forward_dft_prod(const Complex* cvec, int q, int l) {
@@ -68,6 +74,14 @@ Complex forward_dft_prod(const Complex* cvec, int q, int l) {
 
 Complex inverse_dft_prod(const Complex* cvec, int q, int l) {
     return dft_prod(cvec, q, l, 1.0 / (q * q), 1);
+}
+
+void forward_dft_line_prod(Complex* out, const Complex* cvec, int q) {
+    dft_line_prod(out, cvec, q, 1.0, -1);
+}
+
+void inverse_dft_line_prod(Complex* out, const Complex* cvec, int q) {
+    dft_line_prod(out, cvec, q, 1.0 / (q * q), 1);
 }
 
 bool is_power_of_two(int n) {
@@ -115,25 +129,47 @@ IntBlock partition(int total, int num_blocks, int block_idx) {
     return (IntBlock){ block_beg, block_end - block_beg };
 }
 
+void swap_compl(Complex* lhs, Complex* rhs) {
+    Complex tmp = *lhs;
+    *lhs = *rhs;
+    *rhs = tmp;
+}
+
+Complex* transpose_cmat(const Complex* cmat, int nrows, int ncols) {
+    Complex* res = calloc(ncols * nrows, sizeof(Complex));
+    for (int i = 0; i < nrows; ++i) {
+        for (int j = 0; j < ncols; ++j) {
+            res[nrows * j + i] = cmat[ncols * i + j];
+        }
+    }
+    return res;
+}
+
+Complex* mpi_transpose_cmat(const Complex* lines, int q, int crank, int csize) {
+    IntBlock block = partition(q, csize, crank);
+    Complex* tr_lines = transpose_cmat(lines, block.size, q);
+    //
+}
+
 // in:  transposed matrix of x
 // out: transposed matrix of F(x)
 // transposed means column-major
 // 0-th process is root
-Complex* fft(const Complex* trcmat, int q, int crank, int csize) {
+Complex* mpi_fft(const Complex* tr_cmat, int q, double nfactor, int expsign, int crank, int csize) {
     IntBlock block = partition(q, csize, crank);
-    Complex* flatlines = calloc(block.size * q, sizeof(Complex));
+    Complex* phi = calloc(block.size * q, sizeof(Complex));
 
     if (crank == 0) {
         memcpy(
-            flatlines, 
-            trcmat + block.beg * q, 
+            phi, 
+            tr_cmat + block.beg * q, 
             block.size * q * sizeof(Complex)
         );
 
         for (int i = 1; i < csize; ++i) {
             IntBlock block_i = partition(q, csize, i);
             MPI_Send(
-                trcmat + block_i.beg * q, 
+                tr_cmat + block_i.beg * q, 
                 block_i.size * q * sizeof(Complex), 
                 MPI_BYTE, i, 0, MPI_COMM_WORLD
             );
@@ -141,11 +177,23 @@ Complex* fft(const Complex* trcmat, int q, int crank, int csize) {
 
     } else {
         MPI_Recv(
-            flatlines, 
+            phi, 
             block.size * q * sizeof(Complex), 
             MPI_BYTE, 0, 0, MPI_COMM_WORLD
         );
     }
+
+    Complex* ksi = calloc(block.size * q, sizeof(Complex));
+    for (int s = 0; s < block.size; ++s) {
+        Complex* ksi_line = ksi + s * q;
+        Complex* phi_line = phi + s * q;
+        dft_line_prod(ksi_line, phi_line, q, nfactor, expsign);
+        int signed_s = expsign * s;
+        for (int l = 0; l < q; ++l) {
+            ksi_line[l] = mul_compl(phi_line, dft_expi(l * signed_s, q * q))
+        }
+    }
+    free(phi);
 
     //
 }

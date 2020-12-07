@@ -1,6 +1,7 @@
 #include <memory.h>
 #include <stdbool.h>
 #include <math.h>
+#include <string.h>
 #include "complex.h"
 #include <mpi.h>
 
@@ -136,9 +137,57 @@ Complex* mpi_transpose_root_cmat(const Complex* cmat, int q, int crank, int csiz
     return res;
 }
 
+void mpi_debug_cmat(char* fname_prefix, char* cmat_name, const Complex* cvec, int nrows, int ncols, int crank, const char* mode) {
+    char* res = malloc(32 * nrows * ncols + 64);
+    char* tmp = malloc(128);
+    sprintf(res, "proc %d %s\n", crank, cmat_name);
+    for (int i = 0; i < nrows; ++i) {
+        for (int j = 0; j < ncols; ++j) {
+            sprintf(tmp, "(%f, %f) ", cvec[i * ncols + j].re, cvec[i * ncols + j].im);
+            strcat(res, tmp);
+        }
+        strcat(res, "\n");
+    }
+    strcat(res, "\n");
+    char* filename = malloc(128);
+    strcpy(filename, fname_prefix);
+    sprintf(tmp, "proc-%d-debug.out", crank);
+    strcat(filename, tmp);
+    FILE* file = fopen(filename, mode);
+    fputs(res, file);
+    fclose(file);
+    free(filename);
+    free(tmp);
+    free(res);
+}
+
+void debug_cmat(char* fname_prefix, char* cmat_name, const Complex* cvec, int nrows, int ncols, const char* mode) {
+    char* res = malloc(32 * nrows * ncols + 64);
+    char* tmp = malloc(128);
+    sprintf(res, "%s\n", cmat_name);
+    for (int i = 0; i < nrows; ++i) {
+        for (int j = 0; j < ncols; ++j) {
+            sprintf(tmp, "(%f, %f) ", cvec[i * ncols + j].re, cvec[i * ncols + j].im);
+            strcat(res, tmp);
+        }
+        strcat(res, "\n");
+    }
+    strcat(res, "\n");
+    char* filename = malloc(128);
+    strcpy(filename, fname_prefix);
+    sprintf(tmp, "-debug.out");
+    strcat(filename, tmp);
+    FILE* file = fopen(filename, mode);
+    fputs(res, file);
+    fclose(file);
+    free(filename);
+    free(tmp);
+    free(res);
+}
+
 // in:  column-major matrix of x
 // out: column-major matrix of F(x)
-Complex* mpi_generic_fft(const Complex* cmat, int q, double nfactor, int expsign, int crank, int csize, int root) {
+Complex* mpi_generic_fft(const Complex* cmat, int q, double nfactor, int expsign, int crank, int csize, int root, char* fname_prefix) {
     IntBlock block = partition(q, csize, crank);
     Complex* phi = calloc(block.size * q, sizeof(Complex));
 
@@ -164,11 +213,12 @@ Complex* mpi_generic_fft(const Complex* cmat, int q, double nfactor, int expsign
         root, MPI_COMM_WORLD
     );
 
+    mpi_debug_cmat(fname_prefix, "phi", phi, block.size, q, crank, "w");
+
     Complex* nu = calloc(block.size * q, sizeof(Complex));
     for (int s = 0; s < block.size; ++s) {
         Complex* nu_line = nu + s * q;
         Complex* phi_line = phi + s * q;
-        // generic_dft_line_prod(ksi_line, phi_line, q, 1.0, expsign);
         for (int l = 0; l < q; ++l) {
             Complex acc = { 0.0, 0.0 };
             for (int k = 0; k < q; ++k) {
@@ -183,13 +233,17 @@ Complex* mpi_generic_fft(const Complex* cmat, int q, double nfactor, int expsign
     }
     free(phi);
 
+    mpi_debug_cmat(fname_prefix, "nu", nu, block.size, q, crank, "a");
+
     Complex* tr_nu = mpi_transpose_cmat(nu, q, crank, csize);
     free(nu);
 
+    mpi_debug_cmat(fname_prefix, "tr_nu", tr_nu, block.size, q, crank, "a");
+
     Complex* res_part = calloc(block.size * q, sizeof(Complex));
-    for (int l = 0; l < block.size; ++l) {
-        Complex* res_line = res_part + l * q;
-        Complex* tr_nu_line = tr_nu + l * q;
+    for (int l = block.beg; l < block.beg + block.size; ++l) {
+        Complex* res_line = res_part + (l - block.beg) * q;
+        Complex* tr_nu_line = tr_nu + (l - block.beg) * q;
         for (int t = 0; t < q; ++t) {
             Complex acc = { 0.0, 0.0 };
             for (int s = 0; s < q; ++s) {
@@ -204,6 +258,8 @@ Complex* mpi_generic_fft(const Complex* cmat, int q, double nfactor, int expsign
     }
     free(tr_nu);
 
+    mpi_debug_cmat(fname_prefix, "res_part", res_part, block.size, q, crank, "a");
+
     Complex* res = NULL;
     if (crank == root) {
         res = calloc(q * q, sizeof(Complex));
@@ -215,28 +271,28 @@ Complex* mpi_generic_fft(const Complex* cmat, int q, double nfactor, int expsign
     );
     free(res_part);
     if (crank == root) {
+        mpi_debug_cmat(fname_prefix, "res", res, q, q, crank, "a");
         free(counts);
         free(displs);
     }
     return res;
 }
 
-Complex* mpi_fft(const Complex* cmat, int q, int crank, int csize, int root) {
-    return mpi_generic_fft(cmat, q, 1.0, -1, crank, csize, root);
+Complex* mpi_fft(const Complex* cmat, int q, int crank, int csize, int root, char* fname_prefix) {
+    return mpi_generic_fft(cmat, q, 1.0, -1, crank, csize, root, fname_prefix);
 }
 
-Complex* mpi_inverse_fft(const Complex* cmat, int q, int crank, int csize, int root) {
-    return mpi_generic_fft(cmat, q, 1.0 / (q * q), 1, crank, csize, root);
+Complex* mpi_inverse_fft(const Complex* cmat, int q, int crank, int csize, int root, char* fname_prefix) {
+    return mpi_generic_fft(cmat, q, 1.0 / (q * q), 1, crank, csize, root, fname_prefix);
 }
 
 // in:  column-major matrix of x
 // out: column-major matrix of F(x)
-Complex* generic_fft(const Complex* cmat, int q, double nfactor, int expsign) {
+Complex* generic_fft(const Complex* cmat, int q, double nfactor, int expsign, char* fname_prefix) {
     Complex* nu = calloc(q * q, sizeof(Complex));
     for (int s = 0; s < q; ++s) {
         Complex* nu_line = nu + s * q;
-        const Complex* phi_line = cmat + s * q;
-        // generic_dft_line_prod(nu_line, phi_line, q, 1.0, expsign);
+        Complex* phi_line = cmat + s * q;
         for (int l = 0; l < q; ++l) {
             Complex acc = { 0.0, 0.0 };
             for (int k = 0; k < q; ++k) {
@@ -250,8 +306,12 @@ Complex* generic_fft(const Complex* cmat, int q, double nfactor, int expsign) {
         }
     }
 
+    debug_cmat(fname_prefix, "nu", nu, q, q, "w");
+
     transpose_assign_cmat(nu, q, q);
     Complex* tr_nu = nu;
+
+    debug_cmat(fname_prefix, "tr_nu", tr_nu, q, q, "a");
 
     Complex* res = calloc(q * q, sizeof(Complex));
     for (int l = 0; l < q; ++l) {
@@ -269,16 +329,17 @@ Complex* generic_fft(const Complex* cmat, int q, double nfactor, int expsign) {
             res_line[t] = scale_compl(acc, nfactor);
         }
     }
+    debug_cmat(fname_prefix, "res", res, q, q, "a");
     free(tr_nu);
     return res;
 }
 
-Complex* fft(const Complex* cmat, int q) {
-    return generic_fft(cmat, q, 1.0, -1);
+Complex* fft(const Complex* cmat, int q, char* fname_prefix) {
+    return generic_fft(cmat, q, 1.0, -1, fname_prefix);
 }
 
-Complex* inverse_fft(const Complex* cmat, int q) {
-    return generic_fft(cmat, q, 1.0 / (q * q), 1);
+Complex* inverse_fft(const Complex* cmat, int q, char* fname_prefix) {
+    return generic_fft(cmat, q, 1.0 / (q * q), 1, fname_prefix);
 }
 
 // in:  column-major matrix of x
@@ -286,7 +347,6 @@ Complex* inverse_fft(const Complex* cmat, int q) {
 Complex* generic_dft(const Complex* cmat, int q, double nfactor, int expsign) {
     int n = q * q;
     Complex* res = calloc(n, sizeof(Complex));
-    // generic_dft_line_prod(res, cmat, n, nfactor, expsign);
     for (int l = 0; l < n; ++l) {
         Complex acc = { 0.0, 0.0 };
         for (int k = 0; k < n; ++k) {

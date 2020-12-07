@@ -11,7 +11,7 @@ double abs2_compl(Complex c) {
 }
 
 double abs_compl(Complex c) {
-    return sqrt(abs2(c));
+    return sqrt(abs2_compl(c));
 }
 
 double arg(Complex c) {
@@ -117,6 +117,14 @@ void mul_assign_cvec(Complex* lhs, const Complex* rhs, int n) {
     for (int i = 0; i < n; ++i) {
         lhs[i] = mul_compl(lhs[i], rhs[i]);
     }
+}
+
+Complex sum_cvec(const Complex* cvec, int n) {
+    Complex acc = cvec[0];
+    for (int i = 1; i < n; ++i) {
+        acc = add_compl(acc, cvec[i]);
+    }
+    return acc;
 }
 
 double norm2_cvec(const Complex* cvec, int n) {

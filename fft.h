@@ -2,8 +2,16 @@
 #include <stdbool.h>
 #include <math.h>
 #include "complex.h"
-// #include <mpi.h>
-#include "mpi.h" // only for intellisense
+#include <mpi.h>
+
+
+int min_int(int left, int right) {
+    if (left < right) {
+        return left;
+    } else {
+        return right;
+    }
+}
 
 typedef struct {
     int beg;
@@ -16,7 +24,6 @@ IntBlock partition(int total, int num_blocks, int block_idx) {
     int block_maxsize = (total - 1) / num_blocks + 1;
     int block_beg = block_idx * block_maxsize;
     int block_end = min_int(block_beg + block_maxsize, total);
-    // IntBlock res = { block_beg, block_end, block_end - block_beg };
     return (IntBlock){ block_beg, block_end - block_beg };
 }
 
@@ -37,7 +44,7 @@ Complex generic_dft_prod(const Complex* cvec, int q, int l, double nfactor, int 
 
 void generic_dft_line_prod(Complex* out, const Complex* cvec, int q, double nfactor, int expsign) {
     for (int l = 0; l < q; ++l) {
-        out[l] = dft_prod(cvec, q, l, nfactor, expsign);
+        out[l] = generic_dft_prod(cvec, q, l, nfactor, expsign);
     }
 }
 
@@ -70,8 +77,8 @@ Complex* mpi_transpose_cmat(const Complex* lines, int q, int crank, int csize) {
     int cur_pos = 0;
     for (int i = 0; i < block.size; ++i) {
         for (int j = 0; j < csize; ++j) {
-            int countj_div_blsize = counts[j] / block.size;
-            int part = displs[j] + countj_div_blsize * i;
+            int countj_div_blsize = counts[j] / (block.size * sizeof(Complex));
+            int part = displs[j] / sizeof(Complex) + countj_div_blsize * i;
             for (int k = 0; k < countj_div_blsize; ++k) {
                 res[cur_pos++] = buf[part + k];
             }
@@ -83,19 +90,14 @@ Complex* mpi_transpose_cmat(const Complex* lines, int q, int crank, int csize) {
     return res;
 }
 
-// in:  transposed matrix of x
-// out: transposed matrix of F(x)
-// transposed means column-major instead of row-major
-// 0-th process is root
-Complex* mpi_generic_fft(const Complex* tr_cmat, int q, double nfactor, int expsign, int crank, int csize, int root) {
+// for debug of mpi_transpose_cmat
+Complex* mpi_transpose_root_cmat(const Complex* cmat, int q, int crank, int csize, int root) {
     IntBlock block = partition(q, csize, crank);
-    Complex* phi = calloc(block.size * q, sizeof(Complex));
+    Complex* lines = calloc(block.size * q, sizeof(Complex));
 
-    Complex* counts;
-    Complex* displs;
+    int* counts;
+    int* displs;
     if (crank == root) {
-        res = calloc(q * q, sizeof(Complex));
-
         counts = calloc(csize, sizeof(int));
         for (int i = 0; i < csize; ++i) {
             IntBlock block_i = partition(q, csize, i);
@@ -110,33 +112,12 @@ Complex* mpi_generic_fft(const Complex* tr_cmat, int q, double nfactor, int exps
     }
 
     MPI_Scatterv(
-        tr_cmat, counts, displs, MPI_BYTE, 
-        phi, block.size * q * sizeof(Complex), MPI_BYTE, 
+        cmat, counts, displs, MPI_BYTE, 
+        lines, block.size * q * sizeof(Complex), MPI_BYTE, 
         root, MPI_COMM_WORLD
     );
 
-    Complex* ksi = calloc(block.size * q, sizeof(Complex));
-    for (int s = 0; s < block.size; ++s) {
-        Complex* ksi_line = ksi + s * q;
-        Complex* phi_line = phi + s * q;
-        generic_dft_line_prod(ksi_line, phi_line, q, nfactor, expsign);
-        int signed_s = expsign * s;
-        for (int l = 0; l < q; ++l) {
-            ksi_line[l] = mul_compl(phi_line, dft_expi(l * signed_s, q * q))
-        }
-    }
-    free(phi);
-
-    Complex* tr_ksi = mpi_transpose_cmat(ksi, q, crank, csize);
-    free(ksi);
-
-    Complex* res_part = calloc(block.size * q, sizeof(Complex));
-    for (int l = 0; l < block.size; ++l) {
-        Complex* res_line = res_part + l * q;
-        Complex* tr_ksi_line = tr_ksi + l * q;
-        generic_dft_line_prod(res_line, tr_ksi_line, q, nfactor, expsign);
-    }
-    free(tr_ksi);
+    Complex* res_part = mpi_transpose_cmat(lines, q, crank, csize);
 
     Complex* res = NULL;
     if (crank == root) {
@@ -148,15 +129,171 @@ Complex* mpi_generic_fft(const Complex* tr_cmat, int q, double nfactor, int exps
         root, MPI_COMM_WORLD
     );
     free(res_part);
-    free(counts);
-    free(displs);
+    if (crank == root) {
+        free(counts);
+        free(displs);
+    }
     return res;
 }
 
-Complex* mpi_fft(const Complex* tr_cmat, int q, int crank, int csize, int root) {
-    return mpi_generic_fft(tr_cmat, q, 1.0, -1, crank, csize, int root);
+// in:  column-major matrix of x
+// out: column-major matrix of F(x)
+Complex* mpi_generic_fft(const Complex* cmat, int q, double nfactor, int expsign, int crank, int csize, int root) {
+    IntBlock block = partition(q, csize, crank);
+    Complex* phi = calloc(block.size * q, sizeof(Complex));
+
+    int* counts;
+    int* displs;
+    if (crank == root) {
+        counts = calloc(csize, sizeof(int));
+        for (int i = 0; i < csize; ++i) {
+            IntBlock block_i = partition(q, csize, i);
+            counts[i] = block_i.size * q * sizeof(Complex);
+        }
+
+        displs = calloc(csize, sizeof(int));
+        displs[0] = 0;
+        for (int i = 1; i < csize; ++i) {
+            displs[i] = displs[i - 1] + counts[i - 1];
+        }
+    }
+
+    MPI_Scatterv(
+        cmat, counts, displs, MPI_BYTE, 
+        phi, block.size * q * sizeof(Complex), MPI_BYTE, 
+        root, MPI_COMM_WORLD
+    );
+
+    Complex* nu = calloc(block.size * q, sizeof(Complex));
+    for (int s = 0; s < block.size; ++s) {
+        Complex* nu_line = nu + s * q;
+        Complex* phi_line = phi + s * q;
+        // generic_dft_line_prod(ksi_line, phi_line, q, 1.0, expsign);
+        for (int l = 0; l < q; ++l) {
+            Complex acc = { 0.0, 0.0 };
+            for (int k = 0; k < q; ++k) {
+                Complex epsiprod = mul_compl(
+                    phi_line[k], 
+                    dft_expi(expsign * k * l, q)
+                );
+                acc = add_compl(acc, epsiprod);
+            }
+            nu_line[l] = acc;
+        }
+    }
+    free(phi);
+
+    Complex* tr_nu = mpi_transpose_cmat(nu, q, crank, csize);
+    free(nu);
+
+    Complex* res_part = calloc(block.size * q, sizeof(Complex));
+    for (int l = 0; l < block.size; ++l) {
+        Complex* res_line = res_part + l * q;
+        Complex* tr_nu_line = tr_nu + l * q;
+        for (int t = 0; t < q; ++t) {
+            Complex acc = { 0.0, 0.0 };
+            for (int s = 0; s < q; ++s) {
+                Complex epsiprod = mul_compl(
+                    tr_nu_line[s], 
+                    dft_expi(expsign * s * (q * t + l), q * q)
+                );
+                acc = add_compl(acc, epsiprod);
+            }
+            res_line[t] = scale_compl(acc, nfactor);
+        }
+    }
+    free(tr_nu);
+
+    Complex* res = NULL;
+    if (crank == root) {
+        res = calloc(q * q, sizeof(Complex));
+    }
+    MPI_Gatherv(
+        res_part, block.size * q * sizeof(Complex), MPI_BYTE, 
+        res, counts, displs, MPI_BYTE, 
+        root, MPI_COMM_WORLD
+    );
+    free(res_part);
+    if (crank == root) {
+        free(counts);
+        free(displs);
+    }
+    return res;
 }
 
-Complex* mpi_inverse_fft(const Complex* tr_cmat, int q, int crank, int csize, int root) {
-    return mpi_generic_fft(tr_cmat, q, 1.0 / (q * q), 1, crank, csize, int root);
+Complex* mpi_fft(const Complex* cmat, int q, int crank, int csize, int root) {
+    return mpi_generic_fft(cmat, q, 1.0, -1, crank, csize, root);
+}
+
+Complex* mpi_inverse_fft(const Complex* cmat, int q, int crank, int csize, int root) {
+    return mpi_generic_fft(cmat, q, 1.0 / (q * q), 1, crank, csize, root);
+}
+
+// in:  column-major matrix of x
+// out: column-major matrix of F(x)
+Complex* generic_fft(const Complex* cmat, int q, double nfactor, int expsign) {
+    Complex* nu = calloc(q * q, sizeof(Complex));
+    for (int s = 0; s < q; ++s) {
+        Complex* nu_line = nu + s * q;
+        const Complex* phi_line = cmat + s * q;
+        // generic_dft_line_prod(nu_line, phi_line, q, 1.0, expsign);
+        for (int l = 0; l < q; ++l) {
+            Complex acc = { 0.0, 0.0 };
+            for (int k = 0; k < q; ++k) {
+                Complex epsiprod = mul_compl(
+                    phi_line[k], 
+                    dft_expi(expsign * k * l, q)
+                );
+                acc = add_compl(acc, epsiprod);
+            }
+            nu_line[l] = acc;
+        }
+    }
+
+    transpose_assign_cmat(nu, q, q);
+    Complex* tr_nu = nu;
+
+    Complex* res = calloc(q * q, sizeof(Complex));
+    for (int l = 0; l < q; ++l) {
+        Complex* res_line = res + l * q;
+        Complex* tr_nu_line = tr_nu + l * q;
+        for (int t = 0; t < q; ++t) {
+            Complex acc = { 0.0, 0.0 };
+            for (int s = 0; s < q; ++s) {
+                Complex epsiprod = mul_compl(
+                    tr_nu_line[s], 
+                    dft_expi(expsign * s * (q * t + l), q * q)
+                );
+                acc = add_compl(acc, epsiprod);
+            }
+            res_line[t] = scale_compl(acc, nfactor);
+        }
+    }
+    free(tr_nu);
+    return res;
+}
+
+Complex* fft(const Complex* cmat, int q) {
+    return generic_fft(cmat, q, 1.0, -1);
+}
+
+Complex* inverse_fft(const Complex* cmat, int q) {
+    return generic_fft(cmat, q, 1.0 / (q * q), 1);
+}
+
+// in:  column-major matrix of x
+// out: column-major matrix of F(x)
+Complex* generic_dft(const Complex* cmat, int q, double nfactor, int expsign) {
+    int n = q * q;
+    Complex* res = calloc(n, sizeof(Complex));
+    generic_dft_line_prod(res, cmat, n, nfactor, expsign);
+    return res;
+}
+
+Complex* dft(const Complex* cmat, int q) {
+    return generic_dft(cmat, q, 1.0, -1);
+}
+
+Complex* inverse_dft(const Complex* cmat, int q) {
+    return generic_dft(cmat, q, 1.0 / (q * q), 1);
 }

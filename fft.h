@@ -286,7 +286,18 @@ Complex* inverse_fft(const Complex* cmat, int q) {
 Complex* generic_dft(const Complex* cmat, int q, double nfactor, int expsign) {
     int n = q * q;
     Complex* res = calloc(n, sizeof(Complex));
-    generic_dft_line_prod(res, cmat, n, nfactor, expsign);
+    // generic_dft_line_prod(res, cmat, n, nfactor, expsign);
+    for (int l = 0; l < n; ++l) {
+        Complex acc = { 0.0, 0.0 };
+        for (int k = 0; k < n; ++k) {
+            Complex epsiprod = mul_compl(
+                cmat[k], 
+                dft_expi(expsign * k * l, n)
+            );
+            acc = add_compl(acc, epsiprod);
+        }
+        res[l] = scale_compl(acc, nfactor);
+    }
     return res;
 }
 

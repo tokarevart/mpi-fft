@@ -37,8 +37,8 @@ Complex generic_dft_prod(const Complex* cvec, int q, int l, double nfactor, int 
     Complex res = { 0.0, 0.0 };
     int signed_l = l * expsign;
     for (int i = 0; i < q; ++i) {
-        Complex epsiprod = mul_compl(cvec[i], dft_expi(signed_l * i, q));
-        res = add_compl(res, epsiprod);
+        Complex expiprod = mul_compl(cvec[i], dft_expi(signed_l * i, q));
+        res = add_compl(res, expiprod);
     }
     return scale_compl(res, nfactor);
 }
@@ -222,11 +222,11 @@ Complex* mpi_generic_fft(const Complex* cmat, int q, double nfactor, int expsign
         for (int l = 0; l < q; ++l) {
             Complex acc = { 0.0, 0.0 };
             for (int k = 0; k < q; ++k) {
-                Complex epsiprod = mul_compl(
+                Complex expiprod = mul_compl(
                     phi_line[k], 
                     dft_expi(expsign * k * l, q)
                 );
-                acc = add_compl(acc, epsiprod);
+                acc = add_compl(acc, expiprod);
             }
             nu_line[l] = acc;
         }
@@ -247,11 +247,11 @@ Complex* mpi_generic_fft(const Complex* cmat, int q, double nfactor, int expsign
         for (int t = 0; t < q; ++t) {
             Complex acc = { 0.0, 0.0 };
             for (int s = 0; s < q; ++s) {
-                Complex epsiprod = mul_compl(
+                Complex expiprod = mul_compl(
                     tr_nu_line[s], 
                     dft_expi(expsign * s * (q * t + l), q * q)
                 );
-                acc = add_compl(acc, epsiprod);
+                acc = add_compl(acc, expiprod);
             }
             res_line[t] = scale_compl(acc, nfactor);
         }
@@ -296,11 +296,11 @@ Complex* generic_fft(const Complex* cmat, int q, double nfactor, int expsign, ch
         for (int l = 0; l < q; ++l) {
             Complex acc = { 0.0, 0.0 };
             for (int k = 0; k < q; ++k) {
-                Complex epsiprod = mul_compl(
+                Complex expiprod = mul_compl(
                     phi_line[k], 
                     dft_expi(expsign * k * l, q)
                 );
-                acc = add_compl(acc, epsiprod);
+                acc = add_compl(acc, expiprod);
             }
             nu_line[l] = acc;
         }
@@ -320,11 +320,11 @@ Complex* generic_fft(const Complex* cmat, int q, double nfactor, int expsign, ch
         for (int t = 0; t < q; ++t) {
             Complex acc = { 0.0, 0.0 };
             for (int s = 0; s < q; ++s) {
-                Complex epsiprod = mul_compl(
+                Complex expiprod = mul_compl(
                     tr_nu_line[s], 
                     dft_expi(expsign * s * (q * t + l), q * q)
                 );
-                acc = add_compl(acc, epsiprod);
+                acc = add_compl(acc, expiprod);
             }
             res_line[t] = scale_compl(acc, nfactor);
         }
@@ -350,11 +350,11 @@ Complex* generic_dft(const Complex* cmat, int q, double nfactor, int expsign) {
     for (int l = 0; l < n; ++l) {
         Complex acc = { 0.0, 0.0 };
         for (int k = 0; k < n; ++k) {
-            Complex epsiprod = mul_compl(
+            Complex expiprod = mul_compl(
                 cmat[k], 
                 dft_expi(expsign * k * l, n)
             );
-            acc = add_compl(acc, epsiprod);
+            acc = add_compl(acc, expiprod);
         }
         res[l] = scale_compl(acc, nfactor);
     }

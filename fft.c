@@ -3,49 +3,9 @@
 #include <memory.h>
 #include <stdbool.h>
 #include <math.h>
+#include "complex.h"
 // #include <mpi.h>
 #include "mpi.h" // only for intellisense
-
-typedef struct {
-    double re;
-    double im;
-} Complex;
-
-Complex conj_compl(Complex c) {
-    // Complex res = { c.re, -c.im };
-    return (Complex){ c.re, -c.im };
-}
-
-Complex add_compl(Complex lhs, Complex rhs) {
-    // Complex res = { lhs.re + rhs.re, lhs.im + rhs.im };
-    return (Complex){ lhs.re + rhs.re, lhs.im + rhs.im };
-}
-
-Complex sub_compl(Complex lhs, Complex rhs) {
-    // Complex res = { lhs.re - rhs.re, lhs.im - rhs.im };
-    return (Complex){ lhs.re - rhs.re, lhs.im - rhs.im };
-}
-
-Complex scale_compl(Complex c, double k) {
-    // Complex res = { c.re * k, c.im * k };
-    return (Complex){ c.re * k, c.im * k };
-}
-
-Complex mul_compl(Complex lhs, Complex rhs) {
-    // Complex res = { 
-    //     lhs.re * rhs.re - lhs.im * rhs.im, 
-    //     lhs.re * rhs.im + lhs.im * rhs.re 
-    // };
-    return (Complex) { 
-        lhs.re * rhs.re - lhs.im * rhs.im, 
-        lhs.re * rhs.im + lhs.im * rhs.re 
-    };
-}
-
-Complex expi(double x) {
-    // Complex res = { cos(x), sin(x) };
-    return (Complex){ cos(x), sin(x) };
-}
 
 Complex dft_expi(double top, double bottom) {
     const double twopi = 6.2831853071795864769;
@@ -111,26 +71,6 @@ IntBlock partition(int total, int num_blocks, int block_idx) {
     int block_end = min_int(block_beg + block_maxsize, total);
     // IntBlock res = { block_beg, block_end, block_end - block_beg };
     return (IntBlock){ block_beg, block_end - block_beg };
-}
-
-void swap_compl(Complex* lhs, Complex* rhs) {
-    Complex tmp = *lhs;
-    *lhs = *rhs;
-    *rhs = tmp;
-}
-
-void transpose_part_cmat(Complex* dest, int dest_ncols, const Complex* cmat, int nrows, int ncols) {
-    for (int i = 0; i < nrows; ++i) {
-        for (int j = 0; j < ncols; ++j) {
-            dest[j * dest_ncols + i] = cmat[j + i * ncols];
-        }
-    }
-}
-
-Complex* transpose_cmat(const Complex* cmat, int nrows, int ncols) {
-    Complex* res = calloc(ncols * nrows, sizeof(Complex));
-    transpose_part_cmat(res, nrows, cmat, nrows, ncols);
-    return res;
 }
 
 Complex* mpi_transpose_cmat(const Complex* lines, int q, int crank, int csize) {
@@ -245,12 +185,12 @@ Complex* mpi_generic_fft(const Complex* tr_cmat, int q, double nfactor, int exps
     return res;
 }
 
-Complex* mpi_fft(const Complex* tr_cmat, int q, int crank, int csize) {
-    return mpi_generic_fft(tr_cmat, q, 1.0, -1, crank, csize);
+Complex* mpi_fft(const Complex* tr_cmat, int q, int crank, int csize, int root) {
+    return mpi_generic_fft(tr_cmat, q, 1.0, -1, crank, csize, int root);
 }
 
-Complex* mpi_inverse_fft(const Complex* tr_cmat, int q, int crank, int csize) {
-    return mpi_generic_fft(tr_cmat, q, 1.0 / (q * q), 1, crank, csize);
+Complex* mpi_inverse_fft(const Complex* tr_cmat, int q, int crank, int csize, int root) {
+    return mpi_generic_fft(tr_cmat, q, 1.0 / (q * q), 1, crank, csize, int root);
 }
 
 int main(int argc, char** argv) {
@@ -272,7 +212,17 @@ int main(int argc, char** argv) {
         tr_x = random_tr_cmat(q);
     }
     
-    Complex* tr_fx = mpi_fft(tr_x, q, crank, csize);
+    Complex* tr_fx = mpi_fft(tr_x, q, crank, csize, 0);
+    Complex* tr_iffx = mpi_inverse_fft(tr_fx, q, crank, csize, 0);
+
+    if (crank == 0) {
+        Complex* diff = sub_cvec(tr_iffx, tr_x, q * q);
+        printf("norm=%f", norm_cvec(diff, q * q));
+
+        free(tr_x);
+        free(tr_fx);
+        free(tr_iffx);
+    }
 
     MPI_Finalize();
     return 0;

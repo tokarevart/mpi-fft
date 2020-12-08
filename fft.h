@@ -187,7 +187,7 @@ void debug_cmat(char* fname_prefix, char* cmat_name, const Complex* cvec, int nr
 
 // in:  column-major matrix of x
 // out: column-major matrix of F(x)
-Complex* mpi_generic_fft(const Complex* cmat, int q, double nfactor, int expsign, int crank, int csize, int root, char* fname_prefix) {
+Complex* mpi_generic_fft(const Complex* tr_cmat, int q, double nfactor, int expsign, int crank, int csize, int root, char* fname_prefix) {
     IntBlock block = partition(q, csize, crank);
     Complex* phi = calloc(block.size * q, sizeof(Complex));
 
@@ -208,7 +208,7 @@ Complex* mpi_generic_fft(const Complex* cmat, int q, double nfactor, int expsign
     }
 
     MPI_Scatterv(
-        cmat, counts, displs, MPI_BYTE, 
+        tr_cmat, counts, displs, MPI_BYTE, 
         phi, block.size * q * sizeof(Complex), MPI_BYTE, 
         root, MPI_COMM_WORLD
     );
@@ -288,11 +288,11 @@ Complex* mpi_inverse_fft(const Complex* cmat, int q, int crank, int csize, int r
 
 // in:  column-major matrix of x
 // out: column-major matrix of F(x)
-Complex* generic_fft(const Complex* cmat, int q, double nfactor, int expsign, char* fname_prefix) {
+Complex* generic_fft(const Complex* tr_cmat, int q, double nfactor, int expsign, char* fname_prefix) {
     Complex* nu = calloc(q * q, sizeof(Complex));
     for (int s = 0; s < q; ++s) {
         Complex* nu_line = nu + s * q;
-        Complex* phi_line = cmat + s * q;
+        const Complex* phi_line = tr_cmat + s * q;
         for (int l = 0; l < q; ++l) {
             Complex acc = { 0.0, 0.0 };
             for (int k = 0; k < q; ++k) {
@@ -342,8 +342,8 @@ Complex* inverse_fft(const Complex* cmat, int q, char* fname_prefix) {
     return generic_fft(cmat, q, 1.0 / (q * q), 1, fname_prefix);
 }
 
-// in:  column-major matrix of x
-// out: column-major matrix of F(x)
+// in:  row-major matrix of x
+// out: row-major matrix of F(x)
 Complex* generic_dft(const Complex* cmat, int q, double nfactor, int expsign) {
     int n = q * q;
     Complex* res = calloc(n, sizeof(Complex));

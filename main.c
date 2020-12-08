@@ -82,18 +82,18 @@ int main(int argc, char** argv) {
         print_cmat(fft_tr_fx, q, q);
         printf("\n");
 
-        Complex* dft_tr_fx = dft(tr_x, q);
-        printf("dft_tr_fx\n");
-        print_cmat(dft_tr_fx, q, q);
+        Complex* dft_fx = dft(x, q);
+        printf("dft_fx\n");
+        print_cmat(dft_fx, q, q);
         printf("\n");
         
         printf("mpi_tr_fx\n");
         print_cmat(mpi_tr_fx, q, q);
         printf("\n");
 
-        Complex* dft_tr_ifx = inverse_dft(dft_tr_fx, q);
-        printf("dft_tr_ifx\n");
-        print_cmat(dft_tr_ifx, q, q);
+        Complex* dft_ifx = inverse_dft(dft_fx, q);
+        printf("dft_ifx\n");
+        print_cmat(dft_ifx, q, q);
         printf("\n");
 
         Complex* fft_tr_ifx = inverse_fft(fft_tr_fx, q, "inv_fft");
@@ -105,7 +105,7 @@ int main(int argc, char** argv) {
         print_cmat(mpi_tr_ifx, q, q);
         printf("\n");
 
-        Complex* dft_diff = sub_cvec(dft_tr_ifx, tr_x, q * q);
+        Complex* dft_diff = sub_cvec(dft_ifx, x, q * q);
         printf("dft_diff\n");
         print_cmat(dft_diff, q, q);
         printf("\n");
@@ -121,10 +121,10 @@ int main(int argc, char** argv) {
         printf("\n");
 
         printf("norm2 x        = %f\n", norm2_cvec(tr_x, q * q));
-        printf("norm2 dft_fx   = %f\n", norm2_cvec(dft_tr_fx, q * q));
+        printf("norm2 dft_fx   = %f\n", norm2_cvec(dft_fx, q * q));
         printf("norm2 fft_fx   = %f\n", norm2_cvec(fft_tr_fx, q * q));
         printf("norm2 mpi_fx   = %f\n", norm2_cvec(mpi_tr_fx, q * q));
-        printf("norm2 dft_ifx  = %f\n", norm2_cvec(dft_tr_ifx, q * q));
+        printf("norm2 dft_ifx  = %f\n", norm2_cvec(dft_ifx, q * q));
         printf("norm2 fft_ifx  = %f\n", norm2_cvec(fft_tr_ifx, q * q));
         printf("norm2 mpi_ifx  = %f\n", norm2_cvec(mpi_tr_ifx, q * q));
         printf("norm2 dft_diff = %f\n", norm2_cvec(dft_diff, q * q));
@@ -133,10 +133,10 @@ int main(int argc, char** argv) {
 
         free(x);
         free(mpi_x);
-        free(dft_tr_ifx);
+        free(dft_ifx);
         free(fft_tr_ifx);
         free(fft_tr_fx);
-        free(dft_tr_fx);
+        free(dft_fx);
         free(dft_diff);
         free(fft_diff);
         free(mpi_diff);

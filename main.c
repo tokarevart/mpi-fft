@@ -59,8 +59,8 @@ int main(int argc, char** argv) {
         tr_x = random_tr_cmat(q);
     }
     
-    Complex* mpi_tr_fx = mpi_fft(tr_x, q, crank, csize, 0, "mpi_fft");
-    Complex* mpi_tr_ifx = mpi_inverse_fft(mpi_tr_fx, q, crank, csize, 0, "mpi_inv_fft");
+    Complex* mpi_tr_fx = mpi_fft(tr_x, q, crank, csize, 0);
+    Complex* mpi_tr_ifx = mpi_inverse_fft(mpi_tr_fx, q, crank, csize, 0);
     Complex* mpi_x = mpi_transpose_root_cmat(tr_x, q, crank, csize, 0);
     
     if (crank == 0) {
@@ -77,7 +77,7 @@ int main(int argc, char** argv) {
         print_cmat(mpi_x, q, q);
         printf("\n");
     
-        Complex* fft_tr_fx = fft(tr_x, q, "fft");
+        Complex* fft_tr_fx = fft(tr_x, q);
         printf("fft_tr_fx\n");
         print_cmat(fft_tr_fx, q, q);
         printf("\n");
@@ -96,7 +96,7 @@ int main(int argc, char** argv) {
         print_cmat(dft_ifx, q, q);
         printf("\n");
 
-        Complex* fft_tr_ifx = inverse_fft(fft_tr_fx, q, "inv_fft");
+        Complex* fft_tr_ifx = inverse_fft(fft_tr_fx, q);
         printf("fft_tr_ifx\n");
         print_cmat(fft_tr_ifx, q, q);
         printf("\n");

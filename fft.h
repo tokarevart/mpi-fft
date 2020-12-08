@@ -3,30 +3,9 @@
 #include <math.h>
 #include <string.h>
 #include "complex.h"
+#include "intops.h"
 #include <mpi.h>
 
-
-int min_int(int left, int right) {
-    if (left < right) {
-        return left;
-    } else {
-        return right;
-    }
-}
-
-typedef struct {
-    int beg;
-    int size;
-} IntBlock;
-
-// constraint: block_idx < num_blocks <= total
-IntBlock partition(int total, int num_blocks, int block_idx) {
-    num_blocks = min_int(num_blocks, total);
-    int block_maxsize = (total - 1) / num_blocks + 1;
-    int block_beg = block_idx * block_maxsize;
-    int block_end = min_int(block_beg + block_maxsize, total);
-    return (IntBlock){ block_beg, block_end - block_beg };
-}
 
 Complex dft_expi(double top, double bottom) {
     const double twopi = 6.2831853071795864769;
@@ -41,12 +20,6 @@ Complex generic_dft_prod(const Complex* cvec, int q, int l, double nfactor, int 
         res = add_compl(res, expiprod);
     }
     return scale_compl(res, nfactor);
-}
-
-void generic_dft_line_prod(Complex* out, const Complex* cvec, int q, double nfactor, int expsign) {
-    for (int l = 0; l < q; ++l) {
-        out[l] = generic_dft_prod(cvec, q, l, nfactor, expsign);
-    }
 }
 
 Complex* mpi_transpose_cmat(const Complex* lines, int q, int crank, int csize) {
@@ -139,7 +112,7 @@ Complex* mpi_transpose_root_cmat(const Complex* cmat, int q, int crank, int csiz
 
 // in:  column-major matrix of x
 // out: column-major matrix of F(x)
-Complex* mpi_generic_fft(
+Complex* mpi_generic_fft_colmajor_q(
     const Complex* tr_cmat, int q, double nfactor, int expsign, 
     int crank, int csize, int root
 ) {
@@ -224,17 +197,44 @@ Complex* mpi_generic_fft(
     return res;
 }
 
-Complex* mpi_fft(const Complex* cmat, int q, int crank, int csize, int root) {
-    return mpi_generic_fft(cmat, q, 1.0, -1, crank, csize, root);
+Complex* mpi_fft_colmajor_q(const Complex* tr_cmat, int q, int crank, int csize, int root) {
+    return mpi_generic_fft_colmajor_q(tr_cmat, q, 1.0, -1, crank, csize, root);
 }
 
-Complex* mpi_inverse_fft(const Complex* cmat, int q, int crank, int csize, int root) {
-    return mpi_generic_fft(cmat, q, 1.0 / (q * q), 1, crank, csize, root);
+Complex* mpi_inverse_fft_colmajor_q(const Complex* tr_cmat, int q, int crank, int csize, int root) {
+    return mpi_generic_fft_colmajor_q(tr_cmat, q, 1.0 / (q * q), 1, crank, csize, root);
+}
+
+Complex* mpi_generic_fft(
+    const Complex* cvec, int n, double nfactor, int expsign, 
+    int crank, int csize, int root
+) {
+    int q = sqrt_int(n);
+    Complex* tr_cmat = NULL;
+    if (crank == root) {
+        tr_cmat = transpose_cmat(cvec, q, q);
+    } 
+    Complex* res = mpi_generic_fft_colmajor_q(
+        tr_cmat, q, nfactor, expsign, crank, csize, root
+    );
+    if (crank == root) {
+        transpose_sqr_cmat(res, q);
+        free(tr_cmat);
+    }
+    return res;
+}
+
+Complex* mpi_fft(const Complex* cvec, int n, int crank, int csize, int root) {
+    return mpi_generic_fft(cvec, n, 1.0, -1, crank, csize, root);
+}
+
+Complex* mpi_inverse_fft(const Complex* cvec, int n, int crank, int csize, int root) {
+    return mpi_generic_fft(cvec, n, 1.0 / n, 1, crank, csize, root);
 }
 
 // in:  column-major matrix of x
 // out: column-major matrix of F(x)
-Complex* generic_fft(const Complex* tr_cmat, int q, double nfactor, int expsign) {
+Complex* generic_fft_colmajor_q(const Complex* tr_cmat, int q, double nfactor, int expsign) {
     Complex* nu = calloc(q * q, sizeof(Complex));
     for (int s = 0; s < q; ++s) {
         Complex* nu_line = nu + s * q;
@@ -275,24 +275,38 @@ Complex* generic_fft(const Complex* tr_cmat, int q, double nfactor, int expsign)
     return res;
 }
 
-Complex* fft(const Complex* cmat, int q) {
-    return generic_fft(cmat, q, 1.0, -1);
+Complex* fft_colmajor_q(const Complex* tr_cmat, int q) {
+    return generic_fft_colmajor_q(tr_cmat, q, 1.0, -1);
 }
 
-Complex* inverse_fft(const Complex* cmat, int q) {
-    return generic_fft(cmat, q, 1.0 / (q * q), 1);
+Complex* inverse_fft_colmajor_q(const Complex* tr_cmat, int q) {
+    return generic_fft_colmajor_q(tr_cmat, q, 1.0 / (q * q), 1);
 }
 
-// in:  row-major matrix of x
-// out: row-major matrix of F(x)
-Complex* generic_dft(const Complex* cmat, int q, double nfactor, int expsign) {
-    int n = q * q;
+Complex* generic_fft(const Complex* cvec, int n, double nfactor, int expsign) {
+    int q = sqrt_int(n);
+    Complex* tr_cmat = transpose_cmat(cvec, q, q);
+    Complex* res = generic_fft_colmajor_q(tr_cmat, q, nfactor, expsign);
+    transpose_sqr_cmat(res, q);
+    free(tr_cmat);
+    return res;
+}
+
+Complex* fft(const Complex* cvec, int n) {
+    return generic_fft(cvec, n, 1.0, -1);
+}
+
+Complex* inverse_fft(const Complex* cvec, int n) {
+    return generic_fft(cvec, n, 1.0 / n, 1);
+}
+
+Complex* generic_dft(const Complex* cvec, int n, double nfactor, int expsign) {
     Complex* res = calloc(n, sizeof(Complex));
     for (int l = 0; l < n; ++l) {
         Complex acc = { 0.0, 0.0 };
         for (int k = 0; k < n; ++k) {
             Complex expiprod = mul_compl(
-                cmat[k], 
+                cvec[k], 
                 dft_expi(expsign * k * l, n)
             );
             acc = add_compl(acc, expiprod);
@@ -302,10 +316,10 @@ Complex* generic_dft(const Complex* cmat, int q, double nfactor, int expsign) {
     return res;
 }
 
-Complex* dft(const Complex* cmat, int q) {
-    return generic_dft(cmat, q, 1.0, -1);
+Complex* dft(const Complex* cvec, int n) {
+    return generic_dft(cvec, n, 1.0, -1);
 }
 
-Complex* inverse_dft(const Complex* cmat, int q) {
-    return generic_dft(cmat, q, 1.0 / (q * q), 1);
+Complex* inverse_dft(const Complex* cvec, int n) {
+    return generic_dft(cvec, n, 1.0 / n, 1);
 }

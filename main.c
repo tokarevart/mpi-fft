@@ -18,7 +18,7 @@ double random() {
     return rand() / (double)RAND_MAX;
 }
 
-Complex* random_tr_cmat(int q) {
+Complex* random_cmat(int q) {
     int n = q * q;
     if (!is_power_of_two(n)) {
         printf("n=%d is not power of two\n", n);
@@ -43,6 +43,7 @@ void print_cmat(const Complex* cvec, int nrows, int ncols) {
 
 int main(int argc, char** argv) {
     int q = 4;
+    int n = q * q;
 
     int crank, csize;
     MPI_Init(&argc, &argv);
@@ -54,55 +55,48 @@ int main(int argc, char** argv) {
     }
     srand(crank + 1);
 
-    Complex* tr_x = NULL;
+    Complex* x = NULL;
     if (crank == 0) {
-        tr_x = random_tr_cmat(q);
+        x = random_cmat(q);
+        // for (int i = 0; i <= 16; ++i) {
+        //     printf("sqrt(%d)=%d\n", i, sqrt_int(i));
+        // }
     }
     
-    Complex* mpi_tr_fx = mpi_fft(tr_x, q, crank, csize, 0);
-    Complex* mpi_tr_ifx = mpi_inverse_fft(mpi_tr_fx, q, crank, csize, 0);
-    Complex* mpi_x = mpi_transpose_root_cmat(tr_x, q, crank, csize, 0);
+    Complex* mpi_fx = mpi_fft(x, n, crank, csize, 0);
+    Complex* mpi_ifx = mpi_inverse_fft(mpi_fx, n, crank, csize, 0);
     
     if (crank == 0) {
-        printf("tr_x\n");
-        print_cmat(tr_x, q, q);
-        printf("\n");
-
-        Complex* x = transpose_cmat(tr_x, q, q);
         printf("x\n");
         print_cmat(x, q, q);
         printf("\n");
-
-        printf("mpi_x\n");
-        print_cmat(mpi_x, q, q);
-        printf("\n");
     
-        Complex* fft_tr_fx = fft(tr_x, q);
-        printf("fft_tr_fx\n");
-        print_cmat(fft_tr_fx, q, q);
+        Complex* fft_fx = fft(x, n);
+        printf("fft_fx\n");
+        print_cmat(fft_fx, q, q);
         printf("\n");
 
-        Complex* dft_fx = dft(x, q);
+        Complex* dft_fx = dft(x, n);
         printf("dft_fx\n");
         print_cmat(dft_fx, q, q);
         printf("\n");
         
-        printf("mpi_tr_fx\n");
-        print_cmat(mpi_tr_fx, q, q);
+        printf("mpi_fx\n");
+        print_cmat(mpi_fx, q, q);
         printf("\n");
 
-        Complex* dft_ifx = inverse_dft(dft_fx, q);
+        Complex* dft_ifx = inverse_dft(dft_fx, n);
         printf("dft_ifx\n");
         print_cmat(dft_ifx, q, q);
         printf("\n");
 
-        Complex* fft_tr_ifx = inverse_fft(fft_tr_fx, q);
-        printf("fft_tr_ifx\n");
-        print_cmat(fft_tr_ifx, q, q);
+        Complex* fft_ifx = inverse_fft(fft_fx, n);
+        printf("fft_ifx\n");
+        print_cmat(fft_ifx, q, q);
         printf("\n");
         
-        printf("mpi_tr_ifx\n");
-        print_cmat(mpi_tr_ifx, q, q);
+        printf("mpi_ifx\n");
+        print_cmat(mpi_ifx, q, q);
         printf("\n");
 
         Complex* dft_diff = sub_cvec(dft_ifx, x, q * q);
@@ -110,39 +104,37 @@ int main(int argc, char** argv) {
         print_cmat(dft_diff, q, q);
         printf("\n");
 
-        Complex* fft_diff = sub_cvec(fft_tr_ifx, tr_x, q * q);
+        Complex* fft_diff = sub_cvec(fft_ifx, x, q * q);
         printf("fft_diff\n");
         print_cmat(fft_diff, q, q);
         printf("\n");
 
-        Complex* mpi_diff = sub_cvec(mpi_tr_ifx, tr_x, q * q);
+        Complex* mpi_diff = sub_cvec(mpi_ifx, x, q * q);
         printf("mpi_diff\n");
         print_cmat(mpi_diff, q, q);
         printf("\n");
 
-        printf("norm2 x        = %f\n", norm2_cvec(tr_x, q * q));
+        printf("norm2 x        = %f\n", norm2_cvec(x, q * q));
         printf("norm2 dft_fx   = %f\n", norm2_cvec(dft_fx, q * q));
-        printf("norm2 fft_fx   = %f\n", norm2_cvec(fft_tr_fx, q * q));
-        printf("norm2 mpi_fx   = %f\n", norm2_cvec(mpi_tr_fx, q * q));
+        printf("norm2 fft_fx   = %f\n", norm2_cvec(fft_fx, q * q));
+        printf("norm2 mpi_fx   = %f\n", norm2_cvec(mpi_fx, q * q));
         printf("norm2 dft_ifx  = %f\n", norm2_cvec(dft_ifx, q * q));
-        printf("norm2 fft_ifx  = %f\n", norm2_cvec(fft_tr_ifx, q * q));
-        printf("norm2 mpi_ifx  = %f\n", norm2_cvec(mpi_tr_ifx, q * q));
+        printf("norm2 fft_ifx  = %f\n", norm2_cvec(fft_ifx, q * q));
+        printf("norm2 mpi_ifx  = %f\n", norm2_cvec(mpi_ifx, q * q));
         printf("norm2 dft_diff = %f\n", norm2_cvec(dft_diff, q * q));
         printf("norm2 fft_diff = %f\n", norm2_cvec(fft_diff, q * q));
         printf("norm2 mpi_diff = %f\n", norm2_cvec(mpi_diff, q * q));
 
         free(x);
-        free(mpi_x);
         free(dft_ifx);
-        free(fft_tr_ifx);
-        free(fft_tr_fx);
+        free(fft_ifx);
+        free(fft_fx);
         free(dft_fx);
         free(dft_diff);
         free(fft_diff);
         free(mpi_diff);
-        free(tr_x);
-        free(mpi_tr_fx);
-        free(mpi_tr_ifx);
+        free(mpi_fx);
+        free(mpi_ifx);
     }
 
     MPI_Finalize();

@@ -162,7 +162,7 @@ void transpose_assign_cmat(Complex* cmat, int nrows, int ncols) {
 void transpose_sqr_cmat(Complex* cmat, int q) {
     for (int i = 0; i < q; ++i) {
         for (int j = i + 1; j < q; ++j) {
-            cmat[j * q + i] = cmat[j + i * q];
+            swap_compl(cmat + j * q + i, cmat + j + i * q);
         }
     }
 }

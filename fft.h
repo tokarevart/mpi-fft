@@ -48,14 +48,13 @@ Complex* mpi_transpose_cmat(const Complex* lines, int q, int crank, int csize) {
     free(tr_lines);
 
     Complex* res = calloc(block.size * q, sizeof(Complex));
-    int cur_pos = 0;
+    Complex* res_iter = res;
     for (int i = 0; i < block.size; ++i) {
         for (int j = 0; j < csize; ++j) {
             int countj_div_blsize = counts[j] / (block.size * sizeof(Complex));
-            int part = displs[j] / sizeof(Complex) + countj_div_blsize * i;
-            for (int k = 0; k < countj_div_blsize; ++k) {
-                res[cur_pos++] = buf[part + k];
-            }
+            int part = displs[j] / sizeof(Complex) + i * countj_div_blsize;
+            memcpy(res_iter, buf + part, countj_div_blsize * sizeof(Complex));
+            res_iter += countj_div_blsize;
         }
     }
     free(buf);
@@ -168,10 +167,11 @@ Complex* mpi_generic_fft_colmajor_q(
         Complex* tr_nu_line = tr_nu + (l - block.beg) * q;
         for (int t = 0; t < q; ++t) {
             Complex acc = { 0.0, 0.0 };
+            int signed_qt_l = expsign * (q * t + l);
             for (int s = 0; s < q; ++s) {
                 Complex expiprod = mul_compl(
                     tr_nu_line[s], 
-                    dft_expi(expsign * s * (q * t + l), q * q)
+                    dft_expi(s * signed_qt_l, q * q)
                 );
                 acc = add_compl(acc, expiprod);
             }
@@ -261,10 +261,11 @@ Complex* generic_fft_colmajor_q(const Complex* tr_cmat, int q, double nfactor, i
         Complex* tr_nu_line = tr_nu + l * q;
         for (int t = 0; t < q; ++t) {
             Complex acc = { 0.0, 0.0 };
+            int signed_qt_l = expsign * (q * t + l);
             for (int s = 0; s < q; ++s) {
                 Complex expiprod = mul_compl(
                     tr_nu_line[s], 
-                    dft_expi(expsign * s * (q * t + l), q * q)
+                    dft_expi(s * signed_qt_l, q * q)
                 );
                 acc = add_compl(acc, expiprod);
             }

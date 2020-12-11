@@ -1,4 +1,4 @@
-int sqrt_int(int x) {
+static int sqrt_int(int x) {
     if (x == 0 || x == 1) {
         return x;
     }
@@ -24,7 +24,7 @@ int sqrt_int(int x) {
     return res;
 } 
 
-int min_int(int left, int right) {
+static inline int min_int(int left, int right) {
     if (left < right) {
         return left;
     } else {
@@ -38,7 +38,7 @@ typedef struct {
 } IntBlock;
 
 // constraint: block_idx < num_blocks <= total
-IntBlock partition(int total, int num_blocks, int block_idx) {
+static inline IntBlock partition(int total, int num_blocks, int block_idx) {
     num_blocks = min_int(num_blocks, total);
     int block_maxsize = (total - 1) / num_blocks + 1;
     int block_beg = block_idx * block_maxsize;

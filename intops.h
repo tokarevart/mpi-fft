@@ -1,3 +1,5 @@
+#include <stdbool.h>
+
 static int sqrt_int(int x) {
     if (x == 0 || x == 1) {
         return x;
@@ -29,6 +31,43 @@ static inline int min_int(int left, int right) {
         return left;
     } else {
         return right;
+    }
+}
+
+static int power_of(int n, int base) {
+    int res = 0;
+    while (n > 1) {
+        if (n % base != 0) {
+            res = -1;
+            break;
+        }
+        n /= base;
+        ++res;
+    }
+    return res;
+}
+
+static bool is_power_of(int n, int base) {
+    return power_of(n, base) != -1;
+}
+
+int* binarr_from_int(int size, int num) {
+    int* res = calloc(size, sizeof(int));
+    for (int i = 0; i < size; ++i) {
+        res[i] = num % 2;
+        num /= 2;
+    }
+    return res;
+}
+
+void binarr_inc(int* binarr, int size) {
+    for (int i = 0; i < size; ++i) {
+        if (binarr[i] == 1) {
+            binarr[i] = 0;
+        } else {
+            binarr[i] = 1;
+            return;
+        }
     }
 }
 

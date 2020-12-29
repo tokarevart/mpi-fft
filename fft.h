@@ -7,9 +7,14 @@
 #include <mpi.h>
 
 
-static inline Complex dft_expi(double top, double bottom) {
+static inline Complex dft_expi_2d(double top, double bottom) {
     const double twopi = 6.2831853071795864769;
     return expi(twopi * top / bottom);
+}
+
+static inline Complex dft_expi(double x) {
+    const double twopi = 6.2831853071795864769;
+    return expi(twopi * x);
 }
 
 static Complex* mpi_transpose_cmat(const Complex* lines, int q, int crank, int csize) {
@@ -99,6 +104,29 @@ static Complex* mpi_transpose_root_cmat(const Complex* cmat, int q, int crank, i
     return res;
 }
 
+static int fft_binprod(int* binarr, int size) {
+    int res = binarr[0];
+    int coef = 2;
+    for (int i = 1; i < size; ++i) {
+        res += coef * binarr[i];
+        coef *= 2;
+    }
+    return res;
+}
+
+static Complex* generic_fft_element(const Complex* cvec, int n, int elemidx, double nfactor, int expsign) {
+    int b = power_of(n, 2);
+    int* binarr = binarr_from_int(b + 1, 0);
+    // Complex acc0 = { 0.0, 0.0 };
+    // for (int s0 = 0; s0 < 2; ++s0) {
+    //     Complex accb = { 0.0, 0.0 };
+    //     for (int k = 0; k < n[b]; ++k) {
+    //         accb = add_compl(accb, mul_compl(z(...), dft_expi(k * elemidx, n[b])))
+    //     }
+    //     acc0 = add_compl(acc0, mul_compl(z(...), dft_expi(s0 * elemidx, n[0])))
+    // }
+}
+
 // in:  column-major matrix of x
 // out: column-major matrix of F(x)
 static Complex* mpi_generic_fft_colmajor_q(
@@ -139,7 +167,7 @@ static Complex* mpi_generic_fft_colmajor_q(
             for (int k = 0; k < q; ++k) {
                 Complex expiprod = mul_compl(
                     phi_line[k], 
-                    dft_expi(expsign * k * l, q)
+                    dft_expi_2d(expsign * k * l, q)
                 );
                 acc = add_compl(acc, expiprod);
             }
@@ -161,7 +189,7 @@ static Complex* mpi_generic_fft_colmajor_q(
             for (int s = 0; s < q; ++s) {
                 Complex expiprod = mul_compl(
                     tr_nu_line[s], 
-                    dft_expi(s * signed_qt_l, q * q)
+                    dft_expi_2d(s * signed_qt_l, q * q)
                 );
                 acc = add_compl(acc, expiprod);
             }
@@ -234,7 +262,7 @@ static Complex* generic_fft_colmajor_q(const Complex* tr_cmat, int q, double nfa
             for (int k = 0; k < q; ++k) {
                 Complex expiprod = mul_compl(
                     phi_line[k], 
-                    dft_expi(expsign * k * l, q)
+                    dft_expi_2d(expsign * k * l, q)
                 );
                 acc = add_compl(acc, expiprod);
             }
@@ -255,7 +283,7 @@ static Complex* generic_fft_colmajor_q(const Complex* tr_cmat, int q, double nfa
             for (int s = 0; s < q; ++s) {
                 Complex expiprod = mul_compl(
                     tr_nu_line[s], 
-                    dft_expi(s * signed_qt_l, q * q)
+                    dft_expi_2d(s * signed_qt_l, q * q)
                 );
                 acc = add_compl(acc, expiprod);
             }
@@ -298,7 +326,7 @@ Complex* generic_dft(const Complex* cvec, int n, double nfactor, int expsign) {
         for (int k = 0; k < n; ++k) {
             Complex expiprod = mul_compl(
                 cvec[k], 
-                dft_expi(expsign * k * l, n)
+                dft_expi_2d(expsign * k * l, n)
             );
             acc = add_compl(acc, expiprod);
         }

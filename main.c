@@ -2,25 +2,13 @@
 #include <stdio.h>
 #include "fft.h"
 
-bool is_power_of_two(int n) {
-    bool res = true;
-    while (n > 1) {
-        if (n % 2 == 1) {
-            res = false;
-            break;
-        }
-        n /= 2;
-    }
-    return res;
-}
-
 double random() {
     return rand() / (double)RAND_MAX;
 }
 
 Complex* random_cmat(int q) {
     int n = q * q;
-    if (!is_power_of_two(n)) {
+    if (!is_power_of(n, 4)) {
         printf("n=%d is not power of two\n", n);
         return NULL;
     }

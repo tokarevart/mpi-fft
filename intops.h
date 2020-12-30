@@ -51,26 +51,6 @@ static bool is_power_of(int n, int base) {
     return power_of(n, base) != -1;
 }
 
-int* binarr_from_int(int size, int num) {
-    int* res = calloc(size, sizeof(int));
-    for (int i = 0; i < size; ++i) {
-        res[i] = num % 2;
-        num /= 2;
-    }
-    return res;
-}
-
-void binarr_inc(int* binarr, int size) {
-    for (int i = 0; i < size; ++i) {
-        if (binarr[i] == 1) {
-            binarr[i] = 0;
-        } else {
-            binarr[i] = 1;
-            return;
-        }
-    }
-}
-
 typedef struct {
     int beg;
     int size;

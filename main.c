@@ -29,26 +29,11 @@ void print_cmat(const Complex* cvec, int nrows, int ncols) {
     }
 }
 
-int main(int argc, char** argv) {
-    int q = 4;
+int test(int q, int crank, int csize) {
     int n = q * q;
-
-    int crank, csize;
-    MPI_Init(&argc, &argv);
-    MPI_Comm_rank(MPI_COMM_WORLD, &crank);
-    MPI_Comm_size(MPI_COMM_WORLD, &csize);
-    if (crank >= q) {
-        MPI_Finalize();
-        return 0;
-    }
-    srand(crank + 1);
-
     Complex* x = NULL;
     if (crank == 0) {
         x = random_cmat(q);
-        // for (int i = 0; i <= 16; ++i) {
-        //     printf("sqrt(%d)=%d\n", i, sqrt_int(i));
-        // }
     }
     
     Complex* mpi_fx = mpi_fft(x, n, crank, csize, 0);
@@ -124,6 +109,20 @@ int main(int argc, char** argv) {
         free(mpi_fx);
         free(mpi_ifx);
     }
+}
+
+int main(int argc, char** argv) {
+    int crank, csize;
+    MPI_Init(&argc, &argv);
+    MPI_Comm_rank(MPI_COMM_WORLD, &crank);
+    MPI_Comm_size(MPI_COMM_WORLD, &csize);
+    if (crank >= q) {
+        MPI_Finalize();
+        return 0;
+    }
+    srand(crank + 1);
+
+    test(16, crank, csize);
 
     MPI_Finalize();
     return 0;

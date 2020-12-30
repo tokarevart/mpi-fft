@@ -141,13 +141,12 @@ static void generic_fft_rec(
     Complex* out, const Complex* cvec, int n, 
     int rec, int expsign
 ) {
-    const int maxrec = 100;
-    const int minfftn = 16;
+    const int maxrec = 1000;
     if (n == 2) {
         out[0] = add_compl(cvec[0], cvec[1]);
         out[1] = sub_compl(cvec[0], cvec[1]);
 
-    } else if (rec >= maxrec || n < minfftn) {
+    } else if (rec >= maxrec) {
         generic_dft(out, cvec, n, 1.0, expsign);
 
     } else {

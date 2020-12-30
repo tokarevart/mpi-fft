@@ -139,7 +139,7 @@ static Complex* inverse_dft(const Complex* cvec, int n) {
 
 static void generic_fft_rec(
     Complex* out, const Complex* cvec, int n, 
-    int rec, double nfactor, int expsign
+    int rec, int expsign
 ) {
     const int maxrec = 100;
     const int minfftn = 16;
@@ -157,8 +157,8 @@ static void generic_fft_rec(
             evens[i] = cvec[i * 2];
             odds[i] = cvec[i * 2 + 1];
         }
-        generic_fft_rec(out, evens, n / 2, rec + 1, nfactor, expsign);
-        generic_fft_rec(out + n / 2, odds, n / 2, rec + 1, nfactor, expsign);
+        generic_fft_rec(out, evens, n / 2, rec + 1, expsign);
+        generic_fft_rec(out + n / 2, odds, n / 2, rec + 1, expsign);
         free(evens);
         free(odds);
         for (int k = 0; k < n / 2; ++k) {
@@ -176,7 +176,7 @@ static void generic_fft(
     Complex* out, const Complex* cvec, int n, 
     double nfactor, int expsign
 ) {
-    generic_fft_rec(out, cvec, n, 0, nfactor, expsign);
+    generic_fft_rec(out, cvec, n, 0, expsign);
     for (int i = 0; i < n; ++i) {
         out[i] = scale_compl(out[i], nfactor);
     }

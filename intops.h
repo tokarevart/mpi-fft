@@ -47,7 +47,7 @@ static int power_of(int n, int base) {
     return res;
 }
 
-static bool is_power_of(int n, int base) {
+static inline bool is_power_of(int n, int base) {
     return power_of(n, base) != -1;
 }
 

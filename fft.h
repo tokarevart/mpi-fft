@@ -7,14 +7,12 @@
 #include <mpi.h>
 
 
-static inline Complex dft_expi_2d(double top, double bottom) {
+static inline Complex dft_expi(int top, int bottom) {
+    if (top % bottom == 0) {
+        return (Complex){ 1.0, 0.0 };
+    }
     const double twopi = 6.2831853071795864769;
-    return expi(twopi * top / bottom);
-}
-
-static inline Complex dft_expi(double x) {
-    const double twopi = 6.2831853071795864769;
-    return expi(twopi * x);
+    return expi(twopi * (double)top / bottom);
 }
 
 static Complex* mpi_transpose_cmat(
@@ -117,7 +115,7 @@ static void generic_dft(
         for (int k = 0; k < n; ++k) {
             Complex expiprod = mul_compl(
                 cvec[k], 
-                dft_expi_2d(expsign * k * l, n)
+                dft_expi(expsign * k * l, n)
             );
             acc = add_compl(acc, expiprod);
         }
@@ -162,7 +160,7 @@ static void generic_fft_rec(
         free(odds);
         for (int k = 0; k < n / 2; ++k) {
             Complex tmp = out[k];
-            Complex expx = mul_compl(dft_expi_2d(
+            Complex expx = mul_compl(dft_expi(
                 expsign * k, n), out[k + n / 2]
             );
             out[k] = add_compl(tmp, expx);
@@ -236,7 +234,7 @@ static Complex* mpi_generic_fft_colmajor_q(
         Complex* nu_line = nu + s * q;
         for (int l = 0; l < q; ++l) {
             nu_line[l] = mul_compl(
-                nu_line[l], dft_expi_2d(expsign * (block.beg + s) * l, q * q)
+                nu_line[l], dft_expi(expsign * (block.beg + s) * l, q * q)
             );
         }
     }

@@ -58,7 +58,6 @@ typedef struct {
 
 // constraint: block_idx < num_blocks <= total
 static inline IntBlock partition(int total, int num_blocks, int block_idx) {
-    num_blocks = min_int(num_blocks, total);
     int block_maxsize = (total - 1) / num_blocks + 1;
     int block_beg = block_idx * block_maxsize;
     int block_end = min_int(block_beg + block_maxsize, total);

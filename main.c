@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <float.h>
 #include "fft.h"
 
 double random() {
@@ -111,18 +112,47 @@ int test(int q, int crank, int csize) {
     }
 }
 
+double benchmark(int q, int times, int crank, int csize) {
+    int n = q * q;
+    Complex* x = NULL;
+    if (crank == 0) {
+        x = random_cmat(q);
+    }
+
+    double elapsed = DBL_MAX;
+    for (int i = 0; i < times; ++i) {
+        double lstart = MPI_Wtime();
+        Complex* fx = mpi_fft(x, n, crank, csize, 0);
+        double lelapsed = MPI_Wtime() - lstart;
+        if (lelapsed < elapsed) {
+            elapsed = lelapsed;
+        }
+    }
+    
+    if (crank == 0) {
+        FILE* dummy_file = fopen("prevents-opt-away", "w");
+        Complex dummy = { 0.0, 0.0 };
+        for (int i = 0; i < n; i += i * i) {
+            dummy ^= fx[i];
+        }
+        fprintf(dummy_file, "%f", dummy.re);
+        fclose(dummy_file);
+    }
+
+    return elapsed;
+}
+
 int main(int argc, char** argv) {
     int crank, csize;
     MPI_Init(&argc, &argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &crank);
     MPI_Comm_size(MPI_COMM_WORLD, &csize);
-    if (crank >= q) {
-        MPI_Finalize();
-        return 0;
-    }
     srand(crank + 1);
 
-    test(16, crank, csize);
+    // test(16, crank, csize);
+
+    int q = 16;
+    printf("%d\t%f\n", csize, benchmark(q, 10, crank, csize));
 
     MPI_Finalize();
     return 0;

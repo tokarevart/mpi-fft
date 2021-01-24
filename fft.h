@@ -6,7 +6,6 @@
 #include "intops.h"
 #include <mpi.h>
 
-
 static inline Complex dft_expi(int top, int bottom) {
     if (top % bottom == 0) {
         return (Complex){ 1.0, 0.0 };

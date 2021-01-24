@@ -1,31 +1,5 @@
 #include <stdbool.h>
 
-// static int sqrt_int(int x) {
-//     if (x == 0 || x == 1) {
-//         return x;
-//     }
-  
-//     int beg = 1;
-//     int end = x / 2;
-//     int res;
-//     while (beg <= end) {
-//         int mid = (beg + end) / 2;
-//         int mid2 = mid * mid;
-  
-//         if (mid2 == x) {
-//             return mid;
-//         }
-  
-//         if (mid2 < x) { 
-//             beg = mid + 1;
-//             res = mid;
-//         } else {
-//             end = mid - 1;
-//         }
-//     }
-//     return res;
-// } 
-
 static int sqrt_int(int x) {
     for (int i = 0; i < x / 2; ++i) {
         if (i * i == x) {

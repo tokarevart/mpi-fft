@@ -114,35 +114,35 @@ int test(int q, int crank, int csize) {
 
 double benchmark(int q, int times, int crank, int csize) {
     int n = q * q;
-    Complex* x = NULL;
+    Complex* tr_x = NULL;
     if (crank == 0) {
-        x = random_cmat(q);
+        tr_x = random_cmat(q);
     }
 
     double elapsed = DBL_MAX;
     for (int i = 0; i < times; ++i) {
         MPI_Barrier(MPI_COMM_WORLD);
         double lstart = MPI_Wtime();
-        Complex* fx = mpi_fft(x, n, crank, csize, 0);
+        Complex* tr_fx = mpi_fft_colmajor_q(tr_x, q, crank, csize, 0);
         double lelapsed = MPI_Wtime() - lstart;
         if (lelapsed < elapsed) {
             elapsed = lelapsed;
         }
         if (crank == 0) {
-            free(x);
+            free(tr_x);
         }
-        x = fx;
+        tr_x = tr_fx;
     }
     
     if (crank == 0) {
         FILE* dummy_file = fopen("prevents-opt-away", "w");
         double dummy = 0.0;
         for (int i = 0; i < n; i += i * i + 1) {
-            dummy += x[i].re;
+            dummy += tr_x[i].re;
         }
         fprintf(dummy_file, "%f", dummy);
         fclose(dummy_file);
-        free(x);
+        free(tr_x);
     }
 
     return elapsed;

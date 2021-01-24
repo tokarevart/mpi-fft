@@ -30,7 +30,7 @@ void print_cmat(const Complex* cvec, int nrows, int ncols) {
     }
 }
 
-int test(int q, int crank, int csize) {
+void test(int q, int crank, int csize) {
     int n = q * q;
     Complex* x = NULL;
     if (crank == 0) {
@@ -112,6 +112,44 @@ int test(int q, int crank, int csize) {
     }
 }
 
+void plancherel_test(int q, int crank, int csize) {
+    int n = q * q;
+    Complex* x = NULL;
+    if (crank == 0) {
+        x = random_cmat(q);
+    }
+    
+    Complex* mpi_fx = mpi_fft(x, n, crank, csize, 0);
+    
+    if (crank == 0) {
+        printf("%d\t%.10e\n", csize, fabs(norm2_cvec(mpi_fx, n) / n - norm2_cvec(x, n)) / norm2_cvec(x, n));
+
+        free(x);
+        free(mpi_fx);
+    }
+}
+
+void diff_norm_test(int q, int crank, int csize) {
+    int n = q * q;
+    Complex* x = NULL;
+    if (crank == 0) {
+        x = random_cmat(q);
+    }
+    
+    Complex* mpi_fx = mpi_fft(x, n, crank, csize, 0);
+    Complex* mpi_ifx = mpi_inverse_fft(mpi_fx, n, crank, csize, 0);
+    
+    if (crank == 0) {
+        Complex* mpi_diff = sub_cvec(mpi_ifx, x, n);
+        printf("%d\t%.10e\n", csize, norm_cvec(mpi_diff, n) / norm_cvec(x, n));
+
+        free(x);
+        free(mpi_diff);
+        free(mpi_fx);
+        free(mpi_ifx);
+    }
+}
+
 double benchmark(int q, int times, int crank, int csize) {
     int n = q * q;
     Complex* tr_x = NULL;
@@ -155,13 +193,15 @@ int main(int argc, char** argv) {
     MPI_Comm_size(MPI_COMM_WORLD, &csize);
     srand(crank + 1);
 
-    // test(16, crank, csize);
-
     int q = 4096;
-    double time = benchmark(q, 10, crank, csize);
-    if (crank == 0) {
-        printf("%d\t%f\n", csize, time);
-    }
+    // diff_norm_test(q, crank, csize);
+    plancherel_test(q, crank, csize);
+    // double time = benchmark(q, 10, crank, csize);
+    // if (crank == 0) {
+    //     printf("%d\t%f\n", csize, time);
+    // }
+
+    // test(16, crank, csize);
 
     MPI_Finalize();
     return 0;

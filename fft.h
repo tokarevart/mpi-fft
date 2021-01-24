@@ -289,7 +289,7 @@ static Complex* mpi_generic_fft(
     Complex* tr_cmat = NULL;
     if (crank == root) {
         tr_cmat = transpose_cmat(cvec, q, q);
-    } 
+    }
     Complex* res = mpi_generic_fft_colmajor_q(
         tr_cmat, q, nfactor, expsign, crank, csize, root
     );

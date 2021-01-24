@@ -139,7 +139,7 @@ static inline double norm_cvec(const Complex* cvec, int n) {
     return sqrt(norm2_cvec(cvec, n));
 }
 
-static inline void transpose_part_cmat(Complex* dest, int dest_ncols, const Complex* cmat, int nrows, int ncols) {
+static void transpose_part_cmat(Complex* dest, int dest_ncols, const Complex* cmat, int nrows, int ncols) {
     for (int i = 0; i < nrows; ++i) {
         for (int j = 0; j < ncols; ++j) {
             dest[j * dest_ncols + i] = cmat[j + i * ncols];
@@ -147,13 +147,13 @@ static inline void transpose_part_cmat(Complex* dest, int dest_ncols, const Comp
     }
 }
 
-static inline Complex* transpose_cmat(const Complex* cmat, int nrows, int ncols) {
+static Complex* transpose_cmat(const Complex* cmat, int nrows, int ncols) {
     Complex* res = calloc(ncols * nrows, sizeof(Complex));
     transpose_part_cmat(res, nrows, cmat, nrows, ncols);
     return res;
 }
 
-static inline void transpose_assign_cmat(Complex* cmat, int nrows, int ncols) {
+static void transpose_assign_cmat(Complex* cmat, int nrows, int ncols) {
     Complex* res = transpose_cmat(cmat, nrows, ncols);
     memcpy(cmat, res, nrows * ncols * sizeof(Complex));
     free(res);

@@ -121,22 +121,28 @@ double benchmark(int q, int times, int crank, int csize) {
 
     double elapsed = DBL_MAX;
     for (int i = 0; i < times; ++i) {
+        MPI_Barrier(MPI_COMM_WORLD);
         double lstart = MPI_Wtime();
         Complex* fx = mpi_fft(x, n, crank, csize, 0);
         double lelapsed = MPI_Wtime() - lstart;
         if (lelapsed < elapsed) {
             elapsed = lelapsed;
         }
+        if (crank == 0) {
+            free(x);
+        }
+        x = fx;
     }
     
     if (crank == 0) {
         FILE* dummy_file = fopen("prevents-opt-away", "w");
-        Complex dummy = { 0.0, 0.0 };
-        for (int i = 0; i < n; i += i * i) {
-            dummy ^= fx[i];
+        double dummy = 0.0;
+        for (int i = 0; i < n; i += i * i + 1) {
+            dummy += x[i].re;
         }
-        fprintf(dummy_file, "%f", dummy.re);
+        fprintf(dummy_file, "%f", dummy);
         fclose(dummy_file);
+        free(x);
     }
 
     return elapsed;
@@ -151,8 +157,11 @@ int main(int argc, char** argv) {
 
     // test(16, crank, csize);
 
-    int q = 16;
-    printf("%d\t%f\n", csize, benchmark(q, 10, crank, csize));
+    int q = 4096;
+    double time = benchmark(q, 10, crank, csize);
+    if (crank == 0) {
+        printf("%d\t%f\n", csize, time);
+    }
 
     MPI_Finalize();
     return 0;
